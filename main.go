@@ -11,25 +11,26 @@ import (
 )
 
 func main() {
-	// env load
+	// Загружаем переменные окружения
 	env.LoadEnv()
 
-	// db connection
+	// Подключаемся к базе данных
 	dbConn := db.Connect()
 	defer dbConn.Close()
 
-	// migreate db
+	// Запускаем миграцию
 	db.MigrateToDB(dbConn)
 
-	// routes
+	// Инициализация очистки сессий
+	sessions.InitSessionCleanup()
+
+	// Регистрация обработчиков
 	http.HandleFunc("/login", handlers.LoginHandler(dbConn))
 	http.HandleFunc("/register", handlers.RegisterHandler(dbConn))
-	// middleware + routes
 	http.HandleFunc("/logout", sessions.SessionMiddleware(handlers.LogoutHandler()))
 	http.HandleFunc("/protected", sessions.SessionMiddleware(handlers.ProtectedHandler()))
-	http.HandleFunc("/profile", sessions.SessionMiddleware(handlers.ProfileHandler(dbConn)))
 
-	// start server
+	// Запуск сервера
 	log.Println("Сервер запущен на порту 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
