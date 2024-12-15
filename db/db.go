@@ -33,8 +33,9 @@ func MigrateToDB(db *sql.DB) {
 
 	_, err := db.Exec(`
         CREATE TABLE IF NOT EXISTS Users (
-				Login TEXT NOT NULL UNIQUE,
-            	Password TEXT NOT NULL
+            Login TEXT NOT NULL UNIQUE,
+            Password TEXT NOT NULL,
+            CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     `)
 	if err != nil {
