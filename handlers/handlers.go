@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"database/sql"
-	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 
@@ -11,26 +11,36 @@ import (
 )
 
 // LoginHandler обрабатывает авторизацию и создаёт сессию
+// LoginHandler обрабатывает авторизацию и создаёт сессию
 func LoginHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		login := r.URL.Query().Get("login")
 		password := r.URL.Query().Get("password")
 
+		w.Header().Set("Content-Type", "application/json") // Устанавливаем тип ответа
+
 		if login == "" || password == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Поля не могут быть пустыми"))
+			w.Write([]byte(`{"success": false, "message": "Поля не могут быть пустыми"}`))
 			return
 		}
 
 		var storedPassword string
 		err := db.QueryRow("SELECT Password FROM Users WHERE Login = $1", login).Scan(&storedPassword)
-		if err == sql.ErrNoRows || storedPassword != password {
+		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Неправильный логин или пароль"))
+			w.Write([]byte(`{"success": false, "message": "Пользователь не найден"}`))
 			return
 		} else if err != nil {
 			log.Println("Ошибка при запросе в базу данных:", err)
 			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"success": false, "message": "Внутренняя ошибка сервера"}`))
+			return
+		}
+
+		if storedPassword != password {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success": false, "message": "Неправильный пароль"}`))
 			return
 		}
 
@@ -41,8 +51,8 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 			HttpOnly: true,
 			Path:     "/",
 		})
-		w.Write([]byte("Авторизация успешна\n"))
-		w.Write([]byte("Ваш токен активен\n"))
+
+		w.Write([]byte(`{"success": true, "message": "Успешный вход в систему"}`))
 	}
 }
 
@@ -51,6 +61,8 @@ func RegisterHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		login := r.URL.Query().Get("login")
 		password := r.URL.Query().Get("password")
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		if login == "" || password == "" {
 			w.WriteHeader(http.StatusBadRequest)
@@ -62,11 +74,12 @@ func RegisterHandler(db *sql.DB) http.HandlerFunc {
 		_, err := db.Exec("INSERT INTO Users (Login, Password) VALUES ($1, $2)", login, password)
 		if err != nil {
 			log.Println("Ошибка при создании пользователя:", err)
-			w.Write([]byte("Ошибка создания пользователя"))
+			w.Write([]byte("<p style='color: red;'>Ошибка создания пользователя. Возможно, логин уже существует.</p>"))
 			return
 		}
 
-		w.Write([]byte("Пользователь успешно создан"))
+		// Сообщение об успешной регистрации
+		w.Write([]byte("<p style='color: green;'>Пользователь успешно зарегистрирован! Теперь вы можете войти в систему.</p>"))
 	}
 }
 
@@ -96,23 +109,48 @@ func LogoutHandler() http.HandlerFunc {
 	}
 }
 
-// ProfileHandler выводит профиль пользователя, включая дату регистрации
+// ProfileData структура для хранения данных профиля
+type ProfileData struct {
+	Username  string
+	CreatedAt string
+}
+
+// ProfileHandler выводит профиль пользователя
 func ProfileHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Получаем имя пользователя из заголовка, установленного middleware
+		// Получаем имя пользователя из заголовка
 		username := r.Header.Get("X-Username")
+		if username == "" {
+			http.Error(w, "Unauthorized: отсутствует имя пользователя", http.StatusUnauthorized)
+			return
+		}
 
 		// Получаем дату регистрации пользователя из базы данных
 		createdAt, err := repository.GetUserCreatedAt(db, username)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Ошибка при получении данных пользователя"))
+			log.Println("Ошибка при получении даты регистрации:", err)
+			http.Error(w, "Ошибка при получении данных пользователя", http.StatusInternalServerError)
 			return
 		}
 
-		// Формируем и отправляем ответ
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("Добро пожаловать в ваш профиль, %s!\n", username)))
-		w.Write([]byte(fmt.Sprintf("Дата регистрации: %s\n", createdAt)))
+		// Загружаем шаблон profile.html
+		tmpl, err := template.ParseFiles("./static/profile.html")
+		if err != nil {
+			log.Println("Ошибка при загрузке шаблона:", err)
+			http.Error(w, "Ошибка при загрузке страницы профиля", http.StatusInternalServerError)
+			return
+		}
+
+		// Заполняем шаблон данными
+		data := ProfileData{
+			Username:  username,
+			CreatedAt: createdAt,
+		}
+
+		// Отправляем HTML с данными
+		if err := tmpl.Execute(w, data); err != nil {
+			log.Println("Ошибка при выполнении шаблона:", err)
+			http.Error(w, "Ошибка при отображении страницы профиля", http.StatusInternalServerError)
+		}
 	}
 }

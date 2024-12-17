@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Регистрация</title>
+</head>
+<body>
+    <h2>Регистрация</h2>
+    <form action="/register_action" method="GET">
+        <label for="login">Логин:</label>
+        <input type="text" id="login" name="login" required><br><br>
+        <label for="password">Пароль:</label>
+        <input type="password" id="password" name="password" required><br><br>
+        <button type="submit">Зарегистрироваться</button>
+    </form>
+
+    <div id="message">
+        <!-- Сообщение об успешной или неудачной регистрации будет отображаться здесь -->
+    </div>
+</body>
+</html>
