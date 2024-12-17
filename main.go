@@ -29,6 +29,7 @@ func main() {
 	http.HandleFunc("/register", handlers.RegisterHandler(dbConn))
 	http.HandleFunc("/logout", sessions.SessionMiddleware(handlers.LogoutHandler()))
 	http.HandleFunc("/protected", sessions.SessionMiddleware(handlers.ProtectedHandler()))
+	http.HandleFunc("/profile", sessions.SessionMiddleware(handlers.ProfileHandler(dbConn)))
 
 	// Запуск сервера
 	log.Println("Сервер запущен на порту 8080")
